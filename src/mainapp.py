@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter.messagebox import *
 import threading
 import queue
 import time
@@ -10,6 +11,11 @@ class TurboController(ttk.Frame):
     def __init__(self, master):
         super().__init__(master)
         self.master = master
+
+        for i in range(6):
+            self.grid_columnconfigure(i, w=1)
+        #for i in range(8):
+            #self.grid_rowconfigure(i, w=1)
 
         self.info = {}
         for key,value in self.master.Dict.items():
@@ -24,38 +30,51 @@ class TurboController(ttk.Frame):
                 'Frequency' : self.HighVoltage,
                 }
 
-        ttk.Label(self, text='Failure:').grid(row=0, column=0, sticky='ew')
-        LED(self, 25, self.info['Failure'], colors=('gray', 'red')).grid(row=0, column=1)
+        #Headers
+        ttk.Label(self, text='Status', anchor='center', style='Header.TLabel').grid(row=0, column=0, sticky='ew', columnspan=2)
+        ttk.Label(self, text='Supply Output', anchor='center', style='Header.TLabel').grid(row=0, column=3, sticky='ew', columnspan=2)
+        ttk.Label(self, text='Error', anchor='center', style='Header.TLabel').grid(row=0, column=6, sticky='ew', columnspan=2)
+        ttk.Separator(self, orient=tk.HORIZONTAL).grid(row=1, column=0, columnspan=9, sticky='nsew')
+        ttk.Separator(self, orient=tk.HORIZONTAL).grid(row=5, column=0, columnspan=9, sticky='nsew')
+        ttk.Label(self, text='Controls', anchor='center', style='Header.TLabel').grid(row=6, column=0, sticky='ew', columnspan=9)
 
-        ttk.Label(self, text='Low Speed:').grid(row=1, column=0, sticky='ew')
-        LED(self, 25, self.info['Low Speed'], colors=('gray', 'green')).grid(row=1, column=1)
+        #Values
+        ttk.Label(self, text='Pump On/Off', anchor='center').grid(row=2, column=0, sticky='ew')
+        LED(self, 25, self.info['On/Off'], colors=('gray', 'green')).grid(row=2, column=1)
 
-        ttk.Label(self, text='Low Output Frequency:').grid(row=2, column=0, sticky='ew')
-        LED(self, 25, self.info['Frequency'], colors=('gray', 'red')).grid(row=2, column=1)
+        ttk.Label(self, text='Low Speed Activate', anchor='center').grid(row=3, column=0, sticky='ew')
+        LED(self, 25, self.info['Low Speed Activate'], colors=('gray', 'green')).grid(row=3, column=1)
 
-        ttk.Label(self, text='Supply Current (A)').grid(row=3, column=0, sticky='ew')
-        Monitor(self,self.info['Supply Current']).grid(row=3, column=1)
+        ttk.Label(self, text='Error Reset', anchor='center').grid(row=4, column=0, sticky='ew')
+        LED(self, 25, self.info['Error Reset'], colors=('gray', 'green')).grid(row=4, column=1)
 
-        ttk.Label(self, text='Driving Frequency (Hz)').grid(row=4, column=0, sticky='ew')
-        Monitor(self,self.info['Driving Frequency']).grid(row=4, column=1)
+        ttk.Separator(self, orient=tk.VERTICAL).grid(row=0, column=2, rowspan=5, stick='news')
 
-        ttk.Label(self, text='Error Reset').grid(row=5, column=0, sticky='ew')
-        LED(self, 25, self.info['Error Reset'], colors=('gray', 'green')).grid(row=5, column=1)
+        ttk.Label(self, text='Supply Current (A)', anchor='center').grid(row=2, column=3, sticky='ew')
+        Monitor(self,self.info['Supply Current']).grid(row=2, column=4)
 
-        ttk.Label(self, text='Pump On/Off').grid(row=6, column=0, sticky='ew')
-        LED(self, 25, self.info['On/Off'], colors=('gray', 'green')).grid(row=6, column=1)
+        ttk.Label(self, text='Driving Frequency (Hz)', anchor='center').grid(row=3, column=3, sticky='ew', ipadx=5)
+        Monitor(self,self.info['Driving Frequency']).grid(row=3, column=4)
 
-        ttk.Label(self, text='Low Speed Activate').grid(row=7, column=0, sticky='ew')
-        LED(self, 25, self.info['Low Speed Activate'], colors=('gray', 'green')).grid(row=7, column=1)
+        ttk.Separator(self, orient=tk.VERTICAL).grid(row=0, column=5, rowspan=5, stick='news')
+
+        ttk.Label(self, text='Low Speed:', anchor='center').grid(row=2, column=6, sticky='ew')
+        LED(self, 25, self.info['Low Speed'], colors=('gray', 'green')).grid(row=2, column=7)
+
+        ttk.Label(self, text='Failure:', anchor='center').grid(row=3, column=6, sticky='ew')
+        LED(self, 25, self.info['Failure'], colors=('gray', 'red')).grid(row=3, column=7)
+
+        ttk.Label(self, text='Low Output Frequency:', anchor='center').grid(row=4, column=6, sticky='ew')
+        LED(self, 25, self.info['Frequency'], colors=('gray', 'red')).grid(row=4, column=7)
 
         self.startbtn = ttk.Button(self, text='Start Pump', command=self.StartPump)
-        self.startbtn.grid(row=8, column=0, columnspan=2, sticky='ew')
+        self.startbtn.grid(row=7, column=0, columnspan=9, sticky='ew')
 
         self.lowspeedbtn = ttk.Button(self, text='Start Low Speed', command=self.StartLowSpeed)
-        self.lowspeedbtn.grid(row=9, column=0, columnspan=2, sticky='ew')
+        self.lowspeedbtn.grid(row=8, column=0, columnspan=9, sticky='ew')
 
         self.resetbtn = ttk.Button(self, text='Pump Reset', command=lambda: ThreadedTask(self,self.PumpReset))
-        self.resetbtn.grid(row=10, column=0, columnspan=2, sticky='ew')
+        self.resetbtn.grid(row=9, column=0, columnspan=9, sticky='ew')
 
     
     def StartPump(self):
@@ -63,6 +82,8 @@ class TurboController(ttk.Frame):
             self.master.ToggleOn(self.info['On/Off'], 'Start')
             self.startbtn['text'] = 'Stop Pump' 
         elif self.startbtn['text'] == 'Stop Pump':
+            if self.lowspeedbtn['text'] == 'Stop Low Speed':
+                self.StartLowSpeed()
             self.master.ToggleOff(self.info['On/Off'], 'Start')
             self.startbtn['text'] = 'Start Pump' 
 
@@ -181,12 +202,101 @@ class ThreadedTask():
         except queue.Empty:
             self.master.after(100, self.listen_for_result)
 
+class StepperController(ttk.Frame):
+
+    def __init__(self, master):
+        super().__init__(master)
+        self.master = master
+
+        self.info = {}
+        for key,value in self.master.Dict.items():
+            if value in ['Enable Override', 'Direction', 'Frequency Driver', 'Timer Stop', 'Inner Limit Switch', 'Outer Limit Switch']:
+                self.info[value] = {'name':value, 'key':key, 'status':'Off'}
+        
+        self.eqnmap = {
+                'Inner Limit Switch': self.LowVoltage,
+                'Outer Limit Switch': self.LowVoltage,
+                }
+        
+        ttk.Label(self, text='Distance (mm):', anchor='center').grid(row=0, column=0, sticky='ew')
+        self.entry = ttk.Entry(self)
+        self.entry.grid(row=0, column=1, sticky='ew')
+        self.btn = ttk.Button(self,text='Step', command = lambda:ThreadedTask(self, self.Step))
+        self.btn.grid(row=1, column=0, columnspan=2, sticky='ew')
+        
+        ttk.Label(self, text='Inner Limit', anchor='center').grid(row=2, column=0, sticky='ew')
+        LED(self, 25, self.info['Inner Limit Switch'], colors=('gray','red')).grid(row=2, column=1)
+
+        ttk.Label(self, text='Outer Limit', anchor='center').grid(row=3, column=0, sticky='ew')
+        LED(self, 25, self.info['Outer Limit Switch'], colors=('gray','red')).grid(row=3, column=1)
+
+        ttk.Label(self, text='Enable Override', anchor='center').grid(row=4, column=0, sticky='ew')
+        LED(self, 25, self.info['Enable Override'], colors=('gray','green')).grid(row=4, column=1)
+        
+        self.timing = [(0,4e6), (1,12e6), (2,48e6), (3,1e6), (4,4e6), (5,12e6), (6,48e6)]
+
+    def Step(self):
+        if (self.info['Inner Limit Switch']['status'] == 'On') and (not self.master.DevFlag):
+            showinfo('On Inner Limit Switch', 'Moving off inner limit switch.')
+            self.master.ToggleOn(self.info['Enable Override'], 'Enable Override')
+            DAC0_VALUE = self.master.LJ.voltageToDACBits(5.0, dacNumber = 0, is16Bits=False)
+            self.master.LJ.getFeedback(u6.DAC0_8(DAC0_VALUE))
+            i = -1.
+            n = int(i/0.00025099)
+            print(self.master.LJ.TimerConfig(0))
+            self.master.LJ.getFeedback(u6.TimerConfig(1, 9, Value=abs(n)))
+            self.master.LJ.getFeedback(u6.TimerConfig(0, 7, Value=1))
+            self.master.ToggleOff(self.info['Enable Override'], 'Enable Override')
+            return
+        if (self.info['Outer Limit Switch']['status'] == 'On') and (not self.master.DevFlag):
+            showinfo('On Outer Limit Switch', 'Moving off outer limit switch.')
+            self.master.ToggleOn(self.info['Enable Override'], 'Enable Override')
+            DAC0_VALUE = self.master.LJ.voltageToDACBits(0.0, dacNumber = 0, is16Bits=False)
+            self.master.LJ.getFeedback(u6.DAC0_8(DAC0_VALUE))
+            i = 1.
+            n = int(i/0.00025099)
+            print(self.master.LJ.TimerConfig(0))
+            self.master.LJ.getFeedback(u6.TimerConfig(1, 9, Value=abs(n)))
+            self.master.LJ.getFeedback(u6.TimerConfig(0, 7, Value=1))
+            self.master.ToggleOff(self.info['Enable Override'], 'Enable Override')
+            return
+        try:
+            i = float(self.entry.get())
+        except:
+            return
+        if not self.master.DevFlag:
+            if i < 0:
+                DAC0_VALUE = self.master.LJ.voltageToDACBits(5.0, dacNumber = 0, is16Bits=False)
+                self.master.LJ.getFeedback(u6.DAC0_8(DAC0_VALUE))
+            else:
+                DAC0_VALUE = self.master.LJ.voltageToDACBits(0.0, dacNumber = 0, is16Bits=False)
+                self.master.LJ.getFeedback(u6.DAC0_8(DAC0_VALUE))
+        n = int(i/0.00025099)
+        if abs(n) > 65535:
+            showerror('Input too High', 'Motor cannot travel further than {:.1f}mm in one step.'.format(65535*0.00025099))
+            return
+        if not self.master.DevFlag:
+            print(self.master.LJ.TimerConfig(0))
+            self.master.LJ.getFeedback(u6.TimerConfig(1, 9, Value=abs(n)))
+            self.master.LJ.getFeedback(u6.TimerConfig(0, 7, Value=1))
+
+    def LowVoltage(self, info):
+        if self.master.DevFlag:
+            V = np.random.random(1)[0]
+        else:
+            V = self.master.LJ.getAIN(int(key[3:]), resolutionIndex = 8)
+        if V < 3.:
+            info['status'] = 'On'
+        else:
+            info['status'] = 'Off'
+
 class MainApp(tk.Tk):
 
     def __init__(self):
         super().__init__()
         self.grid_rowconfigure(0, w=1) 
         self.grid_columnconfigure(0, w=1) 
+        self.grid_columnconfigure(1, w=1) 
 
         self.Dict = {
                 'AIN0' : 'Failure',
@@ -198,7 +308,16 @@ class MainApp(tk.Tk):
                 'FIO4' : 'On/Off',
                 'FIO5' : 'Low Speed Activate',
                 'FIO6' : 'Enable Override',
+                'DAC0' : 'Direction', 
+                'FIO0' : 'Frequency Driver',
+                'FIO1' : 'Timer Stop',
+                'AIN5' : 'Inner Limit Switch',
+                'AIN6' : 'Outer Limit Switch',
                 }
+
+        s = ttk.Style()
+        s.configure('.', font=('Times', 18))
+        s.configure('Header.TLabel', font=('Times', 24))
 
         self.DevFlag = False
         try:
@@ -206,13 +325,16 @@ class MainApp(tk.Tk):
             self.LJ.getCalibrationData()
             for i in range(20):
                 self.LJ.getFeedback(u6.BitDirWrite(i, 0)) # output
-            #self.LJ.configTimerClock(TimerClockBase=3, TimerClockDivisor=4)
-            #self.LJ.configIO(NumberTimersEnabled=4, EnableCounter1=True)
+            self.LJ.configTimerClock(TimerClockBase=3, TimerClockDivisor=4)
+            self.LJ.configIO(NumberTimersEnabled=2)
         except:
             self.DevFlag = True
 
         self.turbo = TurboController(self)
         self.turbo.grid(row=0, column=0, sticky='news')
+
+        self.stepper = StepperController(self)
+        self.stepper.grid(row=0, column=1, sticky='news')
 
     def ToggleOn(self, relay, name):
         if relay['key'].startswith('E'):
