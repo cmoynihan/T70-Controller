@@ -5,6 +5,7 @@ import threading
 import queue
 import time
 import numpy as np
+import u6
 
 class TurboController(ttk.Frame):
 
@@ -21,7 +22,7 @@ class TurboController(ttk.Frame):
         for key,value in self.master.Dict.items():
             if value in ['Failure','Low Speed','Frequency','Supply Current','Driving Frequency','Error Reset','On/Off','Low Speed Activate']:
                 self.info[value] = {'name':value, 'key':key, 'status':'Off'}
-        
+
         self.eqnmap = {
                 'Supply Current' : self.SupplyCurrent,
                 'Driving Frequency' : self.Frequency,
@@ -76,24 +77,24 @@ class TurboController(ttk.Frame):
         self.resetbtn = ttk.Button(self, text='Pump Reset', command=lambda: ThreadedTask(self,self.PumpReset))
         self.resetbtn.grid(row=9, column=0, columnspan=9, sticky='ew')
 
-    
+
     def StartPump(self):
         if self.startbtn['text'] == 'Start Pump':
             self.master.ToggleOn(self.info['On/Off'], 'Start')
-            self.startbtn['text'] = 'Stop Pump' 
+            self.startbtn['text'] = 'Stop Pump'
         elif self.startbtn['text'] == 'Stop Pump':
             if self.lowspeedbtn['text'] == 'Stop Low Speed':
                 self.StartLowSpeed()
             self.master.ToggleOff(self.info['On/Off'], 'Start')
-            self.startbtn['text'] = 'Start Pump' 
+            self.startbtn['text'] = 'Start Pump'
 
     def StartLowSpeed(self):
         if self.lowspeedbtn['text'] == 'Start Low Speed':
             self.master.ToggleOn(self.info['Low Speed Activate'], 'Low Speed')
-            self.lowspeedbtn['text'] = 'Stop Low Speed' 
+            self.lowspeedbtn['text'] = 'Stop Low Speed'
         elif self.lowspeedbtn['text'] == 'Stop Low Speed':
             self.master.ToggleOff(self.info['Low Speed Activate'], 'Low Speed')
-            self.lowspeedbtn['text'] = 'Start Low Speed' 
+            self.lowspeedbtn['text'] = 'Start Low Speed'
 
     def PumpReset(self):
         self.resetbtn['state'] = tk.DISABLED
@@ -114,30 +115,30 @@ class TurboController(ttk.Frame):
         if self.master.DevFlag:
             info['status'] = np.random.random(1)[0]
         else:
-            V = self.master.LJ.getAIN(int(key[3:]), resolutionIndex = 8)
+            V = self.master.LJ.getAIN(int(info['key'][3:]), resolutionIndex = 8)
             info['status'] = V/4.
 
     def Frequency(self, info):
         if self.master.DevFlag:
             info['status'] = np.random.random(1)[0]
         else:
-            V = self.master.LJ.getAIN(int(key[3:]), resolutionIndex = 8)
+            V = self.master.LJ.getAIN(int(info['key'][3:]), resolutionIndex = 8)
             info['status'] = V*125.
 
     def HighVoltage(self, info):
         if self.master.DevFlag:
             V = np.random.random(1)[0]
         else:
-            V = self.master.LJ.getAIN(int(key[3:]), resolutionIndex = 8)
+            V = self.master.LJ.getAIN(int(info['key'][3:]), resolutionIndex = 8)
         if V > 3.:
             info['status'] = 'On'
         else:
             info['status'] = 'Off'
 
 
-    
+
 class Monitor(ttk.Label):
-    
+
     def __init__(self, master, info):
         self.master = master
         self.info = info
@@ -146,7 +147,7 @@ class Monitor(ttk.Label):
         super().__init__(master, textvariable=self.var)
         self.info = info
         ThreadedTask(self, self.monitor)
-    
+
     def monitor(self):
         while True:
             self.master.eqnmap[self.info['name']](self.info)
@@ -154,8 +155,8 @@ class Monitor(ttk.Label):
                 text = self.info['status']
             elif isinstance(self.info['status'], type(1.)):
                 text = '{:.1f}'.format(self.info['status'])
-            else: 
-                text='Error' 
+            else:
+                text='Error'
             self.var.set(text)
             time.sleep(1)
 
@@ -185,7 +186,7 @@ class LED(tk.Canvas):
                     else: print('Error in toggling LED Color')
                 except KeyError:
                     pass
-            time.sleep(.1) 
+            time.sleep(.1)
 
 class ThreadedTask():
     def __init__(self,master,func, *args, **kwargs):
@@ -212,18 +213,18 @@ class StepperController(ttk.Frame):
         for key,value in self.master.Dict.items():
             if value in ['Enable Override', 'Direction', 'Frequency Driver', 'Timer Stop', 'Inner Limit Switch', 'Outer Limit Switch']:
                 self.info[value] = {'name':value, 'key':key, 'status':'Off'}
-        
+
         self.eqnmap = {
                 'Inner Limit Switch': self.LowVoltage,
                 'Outer Limit Switch': self.LowVoltage,
                 }
-        
+
         ttk.Label(self, text='Distance (mm):', anchor='center').grid(row=0, column=0, sticky='ew')
         self.entry = ttk.Entry(self)
         self.entry.grid(row=0, column=1, sticky='ew')
         self.btn = ttk.Button(self,text='Step', command = lambda:ThreadedTask(self, self.Step))
         self.btn.grid(row=1, column=0, columnspan=2, sticky='ew')
-        
+
         ttk.Label(self, text='Inner Limit', anchor='center').grid(row=2, column=0, sticky='ew')
         LED(self, 25, self.info['Inner Limit Switch'], colors=('gray','red')).grid(row=2, column=1)
 
@@ -232,33 +233,38 @@ class StepperController(ttk.Frame):
 
         ttk.Label(self, text='Enable Override', anchor='center').grid(row=4, column=0, sticky='ew')
         LED(self, 25, self.info['Enable Override'], colors=('gray','green')).grid(row=4, column=1)
-        
-        self.timing = [(0,4e6), (1,12e6), (2,48e6), (3,1e6), (4,4e6), (5,12e6), (6,48e6)]
+
+        self.freq = 976.7
 
     def Step(self):
         if (self.info['Inner Limit Switch']['status'] == 'On') and (not self.master.DevFlag):
             showinfo('On Inner Limit Switch', 'Moving off inner limit switch.')
             self.master.ToggleOn(self.info['Enable Override'], 'Enable Override')
-            DAC0_VALUE = self.master.LJ.voltageToDACBits(5.0, dacNumber = 0, is16Bits=False)
+            DAC0_VALUE = self.master.LJ.voltageToDACBits(0.0, dacNumber = 0, is16Bits=False)
             self.master.LJ.getFeedback(u6.DAC0_8(DAC0_VALUE))
             i = -1.
             n = int(i/0.00025099)
-            print(self.master.LJ.TimerConfig(0))
+            self.btn['state'] = tk.DISABLED
             self.master.LJ.getFeedback(u6.TimerConfig(1, 9, Value=abs(n)))
-            self.master.LJ.getFeedback(u6.TimerConfig(0, 7, Value=1))
+            self.master.LJ.getFeedback(u6.TimerConfig(0, 7, Value=0))
+            time.sleep(abs(n)/self.freq + 1.)
             self.master.ToggleOff(self.info['Enable Override'], 'Enable Override')
+            self.btn['state'] = tk.ACTIVE
             return
         if (self.info['Outer Limit Switch']['status'] == 'On') and (not self.master.DevFlag):
             showinfo('On Outer Limit Switch', 'Moving off outer limit switch.')
             self.master.ToggleOn(self.info['Enable Override'], 'Enable Override')
-            DAC0_VALUE = self.master.LJ.voltageToDACBits(0.0, dacNumber = 0, is16Bits=False)
+            DAC0_VALUE = self.master.LJ.voltageToDACBits(5.0, dacNumber = 0, is16Bits=False)
             self.master.LJ.getFeedback(u6.DAC0_8(DAC0_VALUE))
             i = 1.
             n = int(i/0.00025099)
-            print(self.master.LJ.TimerConfig(0))
+            #print(self.master.LJ.TimerConfig(0))
+            self.btn['state'] = tk.DISABLED
             self.master.LJ.getFeedback(u6.TimerConfig(1, 9, Value=abs(n)))
-            self.master.LJ.getFeedback(u6.TimerConfig(0, 7, Value=1))
+            self.master.LJ.getFeedback(u6.TimerConfig(0, 7, Value=0))
+            time.sleep(abs(n)/self.freq + 1.)
             self.master.ToggleOff(self.info['Enable Override'], 'Enable Override')
+            self.btn['state'] = tk.ACTIVE
             return
         try:
             i = float(self.entry.get())
@@ -266,25 +272,28 @@ class StepperController(ttk.Frame):
             return
         if not self.master.DevFlag:
             if i < 0:
-                DAC0_VALUE = self.master.LJ.voltageToDACBits(5.0, dacNumber = 0, is16Bits=False)
+                DAC0_VALUE = self.master.LJ.voltageToDACBits(0.0, dacNumber = 0, is16Bits=False)
                 self.master.LJ.getFeedback(u6.DAC0_8(DAC0_VALUE))
             else:
-                DAC0_VALUE = self.master.LJ.voltageToDACBits(0.0, dacNumber = 0, is16Bits=False)
+                DAC0_VALUE = self.master.LJ.voltageToDACBits(5.0, dacNumber = 0, is16Bits=False)
                 self.master.LJ.getFeedback(u6.DAC0_8(DAC0_VALUE))
         n = int(i/0.00025099)
         if abs(n) > 65535:
             showerror('Input too High', 'Motor cannot travel further than {:.1f}mm in one step.'.format(65535*0.00025099))
             return
         if not self.master.DevFlag:
-            print(self.master.LJ.TimerConfig(0))
+            self.btn['state'] = tk.DISABLED
             self.master.LJ.getFeedback(u6.TimerConfig(1, 9, Value=abs(n)))
-            self.master.LJ.getFeedback(u6.TimerConfig(0, 7, Value=1))
+            self.master.LJ.getFeedback(u6.TimerConfig(0, 7, Value=0))
+            time.sleep(abs(n)/self.freq + 1.)
+            self.btn['state'] = tk.ACTIVE
+
 
     def LowVoltage(self, info):
         if self.master.DevFlag:
             V = np.random.random(1)[0]
         else:
-            V = self.master.LJ.getAIN(int(key[3:]), resolutionIndex = 8)
+            V = self.master.LJ.getAIN(int(info['key'][3:]), resolutionIndex = 8)
         if V < 3.:
             info['status'] = 'On'
         else:
@@ -294,9 +303,9 @@ class MainApp(tk.Tk):
 
     def __init__(self):
         super().__init__()
-        self.grid_rowconfigure(0, w=1) 
-        self.grid_columnconfigure(0, w=1) 
-        self.grid_columnconfigure(1, w=1) 
+        self.grid_rowconfigure(0, w=1)
+        self.grid_columnconfigure(0, w=1)
+        self.grid_columnconfigure(1, w=1)
 
         self.Dict = {
                 'AIN0' : 'Failure',
@@ -308,7 +317,7 @@ class MainApp(tk.Tk):
                 'FIO4' : 'On/Off',
                 'FIO5' : 'Low Speed Activate',
                 'FIO6' : 'Enable Override',
-                'DAC0' : 'Direction', 
+                'DAC0' : 'Direction',
                 'FIO0' : 'Frequency Driver',
                 'FIO1' : 'Timer Stop',
                 'AIN5' : 'Inner Limit Switch',
@@ -325,10 +334,11 @@ class MainApp(tk.Tk):
             self.LJ.getCalibrationData()
             for i in range(20):
                 self.LJ.getFeedback(u6.BitDirWrite(i, 0)) # output
-            self.LJ.configTimerClock(TimerClockBase=3, TimerClockDivisor=4)
+            self.LJ.configTimerClock(TimerClockBase=3, TimerClockDivisor=2)
             self.LJ.configIO(NumberTimersEnabled=2)
         except:
             self.DevFlag = True
+            print('Dev')
 
         self.turbo = TurboController(self)
         self.turbo.grid(row=0, column=0, sticky='news')
